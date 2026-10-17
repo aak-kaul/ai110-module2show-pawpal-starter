@@ -1,0 +1,39 @@
+classDiagram
+    %% PawPal+ -- Phase 1 DRAFT (initial design, before any code was written)
+    %% Core idea: an Owner has Pets, a Pet has Tasks, and a Scheduler organises Tasks across all Pets.
+
+    class Owner {
+        +str name
+        +List~Pet~ pets
+        +add_pet(pet) void
+        +get_all_tasks() List~Task~
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +List~Task~ tasks
+        +add_task(task) void
+    }
+
+    class Task {
+        +str description
+        +str due_time
+        +int duration_mins
+        +str frequency
+        +bool is_completed
+        +mark_complete() void
+    }
+
+    class Scheduler {
+        +Owner owner
+        +get_all_tasks() List~Task~
+        +sort_by_time() List~Task~
+        +filter_tasks() List~Task~
+        +detect_conflicts() List~str~
+    }
+
+    Owner "1" *-- "0..*" Pet : has
+    Pet "1" *-- "0..*" Task : has
+    Scheduler --> Owner : reads tasks from

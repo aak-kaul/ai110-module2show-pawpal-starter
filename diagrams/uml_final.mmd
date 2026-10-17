@@ -1,0 +1,95 @@
+classDiagram
+    %% PawPal+ -- FINAL design (Phase 6). Matches pawpal_system.py.
+    %% Changes from the draft: added Caregiver (who can do tasks, and when), Task gained
+    %% priority/category/due_date/assigned_to/task_id, Pet gained task management methods,
+    %% Owner gained caregivers + JSON persistence, and Scheduler gained priority sorting,
+    %% recurring tasks, availability search and a next-open-slot finder.
+
+    %% Task value rules: due_time is "HH:MM"; frequency is Once|Daily|Weekly; priority is low|medium|high;
+    %% category is walk|feeding|grooming|play|meds|other; assigned_to is a Caregiver name or None.
+    class Task {
+        +str description
+        +str due_time
+        +int duration_mins
+        +str frequency
+        +str priority
+        +str category
+        +date due_date
+        +str assigned_to
+        +str pet_name
+        +bool is_completed
+        +str task_id
+        +start_minutes int
+        +end_minutes int
+        +end_time str
+        +mark_complete() void
+        +overlaps(other) bool
+        +next_occurrence() Task
+        +to_dict() dict
+        +from_dict(data)$ Task
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +str notes
+        +List~Task~ tasks
+        +add_task(task) Task
+        +remove_task(task_id) bool
+        +get_task(task_id) Task
+        +get_tasks(include_completed) List~Task~
+        +to_dict() dict
+        +from_dict(data)$ Pet
+    }
+
+    class Caregiver {
+        +str name
+        +List~TimeWindow~ availability
+        +add_window(start, end) void
+        +is_available(start, duration_mins) bool
+        +to_dict() dict
+        +from_dict(data)$ Caregiver
+    }
+
+    class Owner {
+        +str name
+        +List~Pet~ pets
+        +List~Caregiver~ caregivers
+        +add_pet(pet) Pet
+        +remove_pet(name) bool
+        +get_pet(name) Pet
+        +add_caregiver(caregiver) Caregiver
+        +get_caregiver(name) Caregiver
+        +get_all_tasks() List~Task~
+        +save_to_json(path) void
+        +load_from_json(path)$ Owner
+    }
+
+    class Scheduler {
+        +Owner owner
+        +get_all_tasks() List~Task~
+        +get_schedule_for_day(day, include_completed) List~Task~
+        +sort_by_time(tasks) List~Task~
+        +sort_by_priority(tasks) List~Task~
+        +filter_tasks(tasks, pet_name, completed, category, caregiver) List~Task~
+        +mark_task_complete(task_id) Task
+        +detect_conflicts(day) List~str~
+        +find_conflicts_for(task) List~str~
+        +schedule_task(pet_name, task) List~str~
+        +caregiver_can_do(name, task) bool
+        +available_caregivers(day, start, duration_mins) List~str~
+        +assign_caregiver(task, name) bool
+        +find_next_available_slot(day, duration_mins, caregiver_name, pet_name) tuple
+        +explain_schedule(day) List~str~
+        +format_schedule(tasks) str
+    }
+
+    Owner "1" *-- "0..*" Pet : owns
+    Owner "1" *-- "0..*" Caregiver : relies on
+    Pet "1" *-- "0..*" Task : has
+    Task "0..*" ..> "0..1" Caregiver : assigned_to (by name)
+    Task ..> Task : next_occurrence() creates
+    Scheduler --> Owner : reads ALL pets' tasks via get_all_tasks()
+    Scheduler ..> Task : sorts / filters / checks
+    Scheduler ..> Caregiver : checks availability
