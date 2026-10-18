@@ -1,0 +1,63 @@
+{
+  "name": "Jordan",
+  "pets": [
+    {
+      "name": "Sammy",
+      "species": "dog",
+      "age": 1,
+      "notes": "Loves to go on walks!",
+      "tasks": []
+    }
+  ],
+  "caregivers": [
+    {
+      "name": "Jordan",
+      "availability": [
+        [
+          "07:00",
+          "21:00"
+        ]
+      ]
+    },
+    {
+      "name": "Amy",
+      "availability": [
+        [
+          "01:00",
+          "04:00"
+        ]
+      ]
+    },
+    {
+      "name": "Sam",
+      "availability": [
+        [
+          "04:00",
+          "07:00"
+        ]
+      ]
+    },
+    {
+      "name": "Holly",
+      "availability": [
+        [
+          "21:00",
+          "22:00"
+        ]
+      ]
+    },
+    {
+      "name": "Amanda",
+      "availability": [
+        [
+          "23:00",
+          "23:59"
+        ]
+      ]
+    },
+    {
+      "name": "Mandy",
+      "availability": []
+    }
+  ]
+}

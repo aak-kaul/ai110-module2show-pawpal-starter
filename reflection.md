@@ -24,7 +24,7 @@ Relationships: Owner *has* Pets, Pet *has* Tasks, Scheduler *reads from* Owner.
 Yes, the design changed in four ways:
 
 1. **Scheduler no longer holds pets.** The very first skeleton I had (visible in a leftover compiled file in the repo) gave the Scheduler its own `pets` list and an `add_pet()`. That duplicates the Owner's data, and a Scheduler built that way can end up looking at a different set of pets than the Owner. I changed it so the Scheduler takes an `Owner` and always calls `Owner.get_all_tasks()`. This is what makes every algorithm work across multiple pets.
-2. **Added a `Caregiver` class.** My four-class draft had no answer to "is someone available to walk the dog at this time?", which is one of the main things I wanted. A Caregiver has a name and daily availability windows, and the Scheduler checks windows against the tasks they already have. This was the only new class; I resisted adding more.
+2. **Added a `Caregiver` class.** My four-class draft had no answer to "is someone available to walk the dog at this time?", which is one of the main things I wanted. A Caregiver has a name and daily availability windows, and the Scheduler checks windows against the tasks they already have. This was the only new class.
 3. **Task grew fields:** `priority`, `category` (walk / feeding / grooming / play / meds), `due_date`, `assigned_to`, a `pet_name` stamped by `Pet.add_task`, and a `task_id`. `due_date` is needed so "daily" recurrence can compute *today + 1 day*. `pet_name` lets a task be described and filtered without carrying the pet around. `task_id` gives the UI and recurrence logic a safe way to refer to one task.
 4. **Return type of `get_all_tasks`.** The first skeleton returned `(pet_name, task)` tuples. Putting `pet_name` on the Task itself made every method (sort, filter, conflict messages) simpler, because they all deal with a plain list of Tasks.
 
@@ -62,7 +62,6 @@ I used Claude as an agent for the whole build: it created the logic layer, demo 
 
 The most helpful prompts were **specific and constraint-heavy**: pointing at the assignment's exact requirements ("the Scheduler must read from an Owner method rather than from a single pet", "return a warning rather than crashing", "use `timedelta`") and describing real scenarios I care about (walk, feed, clean, play with the dog; who is free at what time; multiple pets). Vague prompts like "make it smarter" give generic answers; specific ones give testable code.
 
-I did all the work in **one long session** instead of one chat per phase. That kept the design consistent (no drift between UML, code and README), but I'd split it up next time so each phase's reasoning is easier to review on its own.
 
 **b. Judgment and verification**
 
@@ -79,7 +78,7 @@ How I verified correctness:
 2. **Wrote 32 pytest tests** covering happy paths and edge cases (empty pets, month rollover, back-to-back tasks, completing twice, bad input).
 3. **Mutation-checked the tests:** I deliberately broke the code (daily recurrence +2 days, reversed sort, `<=` instead of `<` in the overlap check) and confirmed the right tests failed. A test suite that can't fail isn't evidence of anything.
 4. **Cross-checked the conflict sweep** against a brute-force all-pairs comparison on 3,000 tasks; both found exactly the same pairs.
-5. **Smoke-tested the UI flows** (add pets, duplicate pet, add task, conflict banner, mark done, reload from `data.json`, corrupted file) against a mocked Streamlit. The final check before submitting is to run `python -m pytest` and `streamlit run app.py` locally and click through the example workflow in the README.
+5. **Smoke-tested the UI flows** (add pets, duplicate pet, add task, conflict banner, mark done, reload from `data.json`, corrupted file) against a mocked Streamlit. For the final checks I ran `python -m pytest` and `streamlit run app.py` locally and clicked through the example workflow in the README.
 
 ---
 

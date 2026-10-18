@@ -63,21 +63,51 @@ Commands run by the agent: `python main.py` (repeatedly, reading the output), th
 
 Option B. A pet scheduler that only notices *identical* start times will happily let you book a 30-minute walk and a feeding 20 minutes into it. The overlap check is only a few lines longer, it is correct against a brute-force reference, and it enables the "person is double-booked" warning that the availability feature builds on. The tradeoff (it warns rather than blocks, and it ignores travel time) is documented in `reflection.md` section 2b.
 
-### Multi-model comparison (optional, to complete)
+### Multi-model comparison: Claude vs. Gemini
 
-<!--
-The rubric asks for a comparison of at least two AI MODELS or prompting strategies. The table above
-compares two strategies (done). If you also want to compare two models, paste the SAME prompt below
-into a second assistant (e.g. ChatGPT or Gemini), then fill in Option B. Delete this section if you
-don't do it.
--->
+**Task:** the same conflict-detection task given to two different models, with the output compared on real inputs. Screenshots of the Gemini session are in [`screenshots/gemini/`](screenshots/gemini/).
 
 **Prompt used for both models:** "Write a Python method for a pet-care scheduler that takes a list of Task objects (each has `due_date`, `due_time` as 'HH:MM', and `duration_mins`) and returns a list of human-readable warnings for every pair that overlaps in time. It must not raise exceptions."
 
+Gemini's version of the prompt ended with one extra sentence, "I have included the zip file with everything here", and the starter zip attached ([prompt](screenshots/gemini/01_prompt.png)). Claude worked inside the repo directly.
+
+**How I compared them:** I copied Gemini's `check_overlaps` verbatim ([code](screenshots/gemini/02_check_overlaps_code.png), [its summary](screenshots/gemini/03_key_features.png)) and ran it against the real `Task` objects from `pawpal_system.py`, next to Claude's `Scheduler.detect_conflicts()`, on seven scenarios plus a 3,000-task stress test.
+
 | | Option A | Option B |
 |-|----------|----------|
-| **Model / tool used** | Claude | *(fill in: e.g. ChatGPT / Gemini)* |
-| **Response summary** | Sort by (date, start), sweep forward until the next task starts after the current one ends. | |
-| **What was useful** | Efficient, agrees with brute force. | |
-| **Problems noticed** | Needs a helper to describe the pair. | |
-| **Decision** | Used in `Scheduler.detect_conflicts`. | |
+| **Model / tool used** | Claude (agent mode, working in the repo) | Gemini (chat, starter zip attached) |
+| **Prompt / task** | The prompt above, plus the project's Task/Pet/Owner design and rubric. | The prompt above plus "I have included the zip file with everything here". |
+| **Response summary** | `Task.overlaps()` plus `Scheduler.detect_conflicts()`: sort once, sweep forward, stop at the first task that starts after the current one ends. `_describe_conflict()` builds the message. | A standalone `check_overlaps(tasks)`: `getattr` for every field, `strptime` into datetimes inside `try/except`, then compare every pair with `max(starts) < min(ends)`. |
+| **What was useful** | Messages say who collides and how ("different pets", "Jordan is double-booked") and include end times. Skips completed tasks. About 3x faster on the stress test (0.6 s vs 2.0 s for 3,000 tasks). | Correct overlap test, in one readable line. Matched Claude on every overlap scenario (same start, partial, contained, back-to-back, different days) and returned the identical 126,255 pairs on the stress test. Genuinely never raises. Combines date and time into one datetime, so tasks on different days are handled right. |
+| **Problems noticed** | The "never raises" guarantee is weaker. `Task` rejects bad times when it is created, so the method does not defend itself, and I confirmed that a task whose `due_time` is changed to junk *after* creation makes `detect_conflicts` raise `ValueError`. Also more code to read. | It invented attribute names (`pet_id`, `task_type`) that my `Task` doesn't have, so on real data every warning read *"Conflict detected between 'Task' for Unknown Pet ... and 'Task' for Unknown Pet"*, with no pet or activity named, even though the zip was attached. `except Exception: continue` silently drops a task with a bad time (e.g. "25:99"), so a possible conflict is never reported and nothing says so. It flags **completed** tasks as conflicts (1 vs 0 in my test). It doesn't say whether the clash is same-pet, cross-pet or a double-booked person. Plain all-pairs loop with no early exit. |
+| **Decision** | **Used in the final project.** | Not used. Its overlap line and its defensive try/except are good ideas, but the unusable messages and the ignored completed tasks would have failed the multi-pet and caregiver features. |
+
+| Scenario (real `Task` objects) | Gemini | Claude |
+|---|---:|---:|
+| same start, two pets | 1 | 1 |
+| partial overlap | 1 | 1 |
+| contained | 1 | 1 |
+| back-to-back (should be 0) | 0 | 0 |
+| different days (should be 0) | 0 | 0 |
+| one task already completed (should be 0) | **1** | 0 |
+| same person double-booked | 1 | 1 |
+
+**Takeaway:** both models got the algorithm right. The difference was in fitting it to my actual code: Gemini wrote generic code against guessed attribute names, while Claude's version used the real fields and carried the project's rules (completed tasks, caregivers). The fair criticism of Claude's version is that it would be safer if `detect_conflicts` also skipped any task it cannot parse and reported it; that is a possible next improvement.
+
+#### The same comparison at project scale
+
+I also gave Gemini the full assignment and rubric ([its reply](screenshots/gemini/project_01_summary.png)) and read the result against the instructions and rubric. What was good: a compact merge-intervals "next free slot" search, a `mark_incomplete()` toggle, and an interactive menu that uses `tabulate` when installed. What I found missing or wrong:
+
+| Check | Gemini's full-project reply | Final project (Claude) |
+|---|---|---|
+| Streamlit UI (Phases 3 and 6) | No `app.py`; replaced with a terminal `input()` menu ([main.py](screenshots/gemini/project_06_main_a.png)) | `app.py` with `st.session_state`, forms, banners |
+| `Owner.get_all_tasks()` that the Scheduler reads | Not present; the Scheduler loops over pets itself ([scheduler](screenshots/gemini/project_04_scheduler.png)) | Present, and the Scheduler reads through it |
+| Dataclasses for Task and Pet (Phase 1) | Plain classes | `@dataclass` |
+| Recurring daily/weekly tasks (Phase 4) | Not implemented | `Task.next_occurrence()` + `Scheduler.mark_task_complete()` |
+| "Is someone available?" | Only avoids other tasks; no people or availability | `Caregiver` windows + `available_caregivers()` |
+| UML draft + final | Final only; it and the README list a `PawPalPersistence` class that does not exist in the code (just two functions) ([UML](screenshots/gemini/project_10_uml.png)) | `uml_draft.mmd` and `uml_final.mmd`, matching the code |
+| Tests | 7 tests; the "sorting" test only asserts the first item's priority is High or Medium, and there is no recurrence test ([tests](screenshots/gemini/project_09_tests.png)) | 32 tests with ordering, recurrence and edge cases, checked by breaking the code |
+| README sample outputs | Not from a real run: the pytest block contains placeholders (`Python 3.10.x`, `pytest-7.x.x`, `/path/to/pawpal`) and the CLI table shows "Fetch with ball" and a *Completed* task, but its own `main.py` seeds "Fetch with tennis ball" and *Pending* ([README](screenshots/gemini/project_11_readme.png)) | Pasted from real runs |
+| Model comparison in `ai_interactions.md` | Describes "Claude 3.5 Sonnet / Gemini 1.5 Pro" and "GPT-4o Agent" comparisons that were never run ([file](screenshots/gemini/project_12_ai_interactions_reflection.png)) | Only comparisons that were actually run, with numbers |
+
+**Final decision:** I kept Claude's implementation for the whole project and did not merge any Gemini code into the repo. The most useful lesson was verification: Gemini's summary looked complete, but running its code against my real classes and checking it against the assignment's exact requirements showed where it fell short. An AI answer that sounds finished still has to be tested against your own data and requirements.
